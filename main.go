@@ -189,7 +189,7 @@ func (s Submaps) Print() {
 	}
 }
 
-func (f Flags) Mods() string {
+func (f Flags) String() string {
 	var mods []string
 	for _, mod := range modifiers {
 		if f&mod.Flag != 0 {
@@ -199,28 +199,32 @@ func (f Flags) Mods() string {
 	return strings.Join(mods, "_")
 }
 
-func (f Flags) Keys() []string {
-	var keys []string
+func (f Flags) Mods() []*Modifier {
+	var mods []*Modifier
 	for _, mod := range modifiers {
 		if f&mod.Flag != 0 {
-			keys = append(keys, mod.Keys...)
+			mods = append(mods, mod)
 		}
 	}
-	return keys
+	return mods
 }
 
 func (f Flags) PrintEnter(submap string) {
 	fmt.Printf("\n")
-	mods := f.Mods()
-	for _, key := range f.Keys() {
-		fmt.Printf("bindr=%s,%s,submap,%s\n", mods, key, submap)
+	mods := f.String()
+	for _, mod := range f.Mods() {
+		for _, key := range mod.Keys {
+			fmt.Printf("bindr=%s,%s,submap,%s\n", mods, key, submap)
+		}
 	}
 }
 
 func (f Flags) PrintExit() {
 	fmt.Printf("\n")
-	for _, key := range f.Keys() {
-		fmt.Printf("bindr=,%s,submap,reset\n", key)
+	for _, mod := range f.Mods() {
+		for _, key := range mod.Keys {
+			fmt.Printf("bindr=%s,%s,submap,reset\n", mod.Name[0], key)
+		}
 	}
 }
 
@@ -228,7 +232,7 @@ func (b Binds) Print(flags Flags, reset bool) {
 	if len(b) > 0 {
 		fmt.Printf("\n")
 	}
-	mods := flags.Mods()
+	mods := flags.String()
 	for _, bind := range b {
 		fmt.Printf(
 			"%s=%s,%s,%s,%s\n",
