@@ -20,10 +20,9 @@ type (
 	Flags byte
 
 	Bind struct {
-		Command    string
-		Key        string
-		Dispatcher string
-		Args       string
+		Flags    string
+		Key      string
+		Dispatch string
 	}
 
 	Binds []*Bind
@@ -43,15 +42,11 @@ type (
 )
 
 var (
-	varRegexp = regexp.MustCompile(
-		`^\s*(\$\w+)\s*=(.*)`,
-	)
-	bindRegexp = regexp.MustCompile(
-		`^\s*(bind[lrenmt]*)\s*=([^,]*),([^,]*),([^,]*),(.*)`,
-	)
-	aliasRegexp = regexp.MustCompile(
-		`^\s*#alias\s*=([^,]*),(.*)`,
-	)
+	varRx     = regexp.MustCompile(`^\s*(\$\w+)\s*=(.*)`)
+	bindRx    = regexp.MustCompile(`^\s*bind([lrenmt]*)\s*=([^,]*),([^,]*),(.*)`)
+	aliasRx   = regexp.MustCompile(`^\s*#alias\s*=([^,]*),(.*)`)
+	submapRx  = regexp.MustCompile(`^\s*submap\s*=`)
+	resetRx   = regexp.MustCompile(`^\s*submap\s*=\s*reset`)
 	modifiers = []*Modifier{{
 		Name: []string{"SHIFT"},
 		Flag: 0b00000001,
@@ -101,27 +96,42 @@ func main() {
 
 	var vars Variables
 	submaps := make(Submaps)
+	var ignore bool
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		if m := varRegexp.FindStringSubmatch(line); m != nil {
-			vars = append(vars, &Variable{m[1], strings.TrimSpace(m[2])})
+		if ignore {
+			if resetRx.MatchString(line) {
+				ignore = false
+			}
+			continue
 		}
 
-		if m := bindRegexp.FindStringSubmatch(line); m != nil {
+		if submapRx.MatchString(line) {
+			ignore = true
+			continue
+		}
+
+		if m := varRx.FindStringSubmatch(line); m != nil {
+			vars = append(vars, &Variable{m[1], strings.TrimSpace(m[2])})
+			continue
+		}
+
+		if m := bindRx.FindStringSubmatch(line); m != nil {
 			submap := submaps.Get(vars.Apply(m[2]))
 			submap.Binds = append(submap.Binds, &Bind{
 				strings.TrimSpace(m[1]),
 				strings.TrimSpace(m[3]),
 				strings.TrimSpace(m[4]),
-				strings.TrimSpace(m[5]),
 			})
+			continue
 		}
 
-		if m := aliasRegexp.FindStringSubmatch(line); m != nil {
+		if m := aliasRx.FindStringSubmatch(line); m != nil {
 			submaps.Get(vars.Apply(m[1])).Alias = strings.TrimSpace(m[2])
+			continue
 		}
 	}
 
@@ -164,6 +174,10 @@ func (s Submaps) Print() {
 		order = append(order, flags)
 	}
 	sort.Slice(order, func(i, j int) bool { return order[i] < order[j] })
+
+	if order[0] == 0 {
+		order = order[1:]
+	}
 
 	for i, flags := range order {
 		submap := s[flags]
@@ -232,20 +246,20 @@ func (b Binds) Print(flags Flags, reset bool) {
 	if len(b) > 0 {
 		fmt.Printf("\n")
 	}
+
 	mods := flags.String()
 	for _, bind := range b {
 		fmt.Printf(
-			"%s=%s,%s,%s,%s\n",
-			bind.Command,
+			"bind%s=%s,%s,%s\n",
+			bind.Flags,
 			mods,
 			bind.Key,
-			bind.Dispatcher,
-			bind.Args,
+			bind.Dispatch,
 		)
 		if reset {
 			fmt.Printf(
-				"%s=%s,%s,submap,reset\n",
-				bind.Command,
+				"bind%s=%s,%s,submap,reset\n",
+				bind.Flags,
 				mods,
 				bind.Key,
 			)
