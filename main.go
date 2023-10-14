@@ -259,7 +259,7 @@ func (b Binds) Print(flags Flags, reset bool) {
 		if reset {
 			fmt.Printf(
 				"bind%s=%s,%s,submap,reset\n",
-				bind.Flags,
+				strings.ReplaceAll(bind.Flags, "m", "r"),
 				mods,
 				bind.Key,
 			)
