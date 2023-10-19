@@ -19,9 +19,13 @@ type (
 
 	Flags byte
 
+	Target struct {
+		Flags string
+		Key   string
+	}
+
 	Bind struct {
-		Flags    string
-		Key      string
+		Target
 		Dispatch string
 	}
 
@@ -122,8 +126,7 @@ func main() {
 		if m := bindRx.FindStringSubmatch(line); m != nil {
 			submap := submaps.Get(vars.Apply(m[2]))
 			submap.Binds = append(submap.Binds, &Bind{
-				strings.TrimSpace(m[1]),
-				strings.TrimSpace(m[3]),
+				Target{strings.TrimSpace(m[1]), strings.TrimSpace(m[3])},
 				strings.TrimSpace(m[4]),
 			})
 			continue
@@ -243,10 +246,11 @@ func (f Flags) PrintExit() {
 }
 
 func (b Binds) Print(flags Flags, reset bool) {
-	if len(b) > 0 {
-		fmt.Printf("\n")
+	if len(b) == 0 {
+		return
 	}
 
+	fmt.Printf("\n")
 	mods := flags.String()
 	for _, bind := range b {
 		fmt.Printf(
@@ -256,13 +260,21 @@ func (b Binds) Print(flags Flags, reset bool) {
 			bind.Key,
 			bind.Dispatch,
 		)
-		if reset {
-			fmt.Printf(
-				"bind%s=%s,%s,submap,reset\n",
-				strings.ReplaceAll(bind.Flags, "m", "r"),
-				mods,
-				bind.Key,
-			)
+	}
+
+	if reset {
+		fmt.Printf("\n")
+		dedup := make(map[Target]struct{}, len(b))
+		for _, bind := range b {
+			if _, ok := dedup[bind.Target]; !ok {
+				fmt.Printf(
+					"bind%s=%s,%s,submap,reset\n",
+					strings.ReplaceAll(bind.Flags, "m", "r"),
+					mods,
+					bind.Key,
+				)
+				dedup[bind.Target] = struct{}{}
+			}
 		}
 	}
 }
